@@ -87,15 +87,16 @@ select:disabled {
 
 .chart-wrap {
   width: 100%;
-  overflow: auto;
+  overflow: hidden;
   border-radius: 16px;
   border: 1px solid #e3dac8;
   background: #fff;
+  min-height: 540px;
+  padding: 12px;
 }
 
-#chartImage {
+#oiChart {
   display: block;
   width: 100%;
-  height: auto;
-  min-width: 720px;
+  height: 520px;
 }

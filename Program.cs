@@ -41,7 +41,6 @@ builder.Services.AddHttpClient<IMcxService, McxService>((sp, client) =>
     };
 });
 
-builder.Services.AddSingleton<GraphService>();
 builder.Services.AddSingleton<AnalysisService>();
 builder.Services.AddSingleton<ExpiryService>();
 
