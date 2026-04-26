@@ -1,15 +1,39 @@
 (function (global) {
+  const globalPlugins = [];
+
   class MiniChart {
     constructor(canvas, config) {
       this.canvas = typeof canvas === "string" ? document.getElementById(canvas) : canvas;
+      if (!this.canvas) {
+        throw new Error("Canvas element not found");
+      }
+
       this.ctx = this.canvas.getContext("2d");
       this.config = config || {};
       this.data = this.config.data || { labels: [], datasets: [] };
       this.options = this.config.options || {};
-      this.plugins = this.config.plugins || [];
+      this.plugins = [...globalPlugins, ...(this.config.plugins || [])];
       this._resizeHandler = () => this.render();
       window.addEventListener("resize", this._resizeHandler);
       this.render();
+    }
+
+    static register(...plugins) {
+      plugins.flat().forEach((plugin) => {
+        if (!plugin || globalPlugins.includes(plugin)) {
+          return;
+        }
+        globalPlugins.push(plugin);
+      });
+    }
+
+    static unregister(...plugins) {
+      plugins.flat().forEach((plugin) => {
+        const index = globalPlugins.indexOf(plugin);
+        if (index >= 0) {
+          globalPlugins.splice(index, 1);
+        }
+      });
     }
 
     destroy() {
@@ -37,6 +61,10 @@
       this.ctx.fillRect(0, 0, this.width, this.height);
     }
 
+    _getScaleOptions() {
+      return (this.options.scales && this.options.scales.x && this.options.scales.x.ticks) || {};
+    }
+
     render() {
       if (!this.canvas) return;
       this._setCanvasSize();
@@ -47,7 +75,7 @@
       const left = 64;
       const right = 20;
       const top = 30;
-      const bottom = 52;
+      const bottom = 60;
       const plotWidth = Math.max(1, this.width - left - right);
       const plotHeight = Math.max(1, this.height - top - bottom);
       const originX = left;
@@ -56,6 +84,7 @@
       const groupWidth = labels.length ? plotWidth / labels.length : plotWidth;
       const barPadding = Math.max(4, Math.min(10, groupWidth * 0.16));
       const barWidth = Math.max(6, (groupWidth - barPadding * 3) / Math.max(1, datasets.length));
+      const labelTicks = this._getScaleOptions();
 
       this.ctx.save();
       this.ctx.strokeStyle = "rgba(255,255,255,0.18)";
@@ -101,10 +130,20 @@
       this.ctx.fillStyle = "#e6eef7";
       this.ctx.font = "11px Arial";
       labels.forEach((label, index) => {
+        const cb = labelTicks.callback;
+        let text = String(label);
+        if (typeof cb === "function") {
+          const tickValue = index;
+          const tick = { label };
+          const result = cb.call(labelTicks, tickValue, index, labels);
+          if (result === "") {
+            return;
+          }
+          text = String(result);
+        }
         const x = originX + index * groupWidth + groupWidth / 2;
-        const text = String(label);
         const metrics = this.ctx.measureText(text);
-        this.ctx.fillText(text, x - metrics.width / 2, originY + 18);
+        this.ctx.fillText(text, x - metrics.width / 2, originY + 22);
       });
 
       const legend = (this.options.plugins && this.options.plugins.legend) ? this.options.plugins.legend : null;
@@ -128,6 +167,7 @@
         getPixelForValue: (index) => originX + index * groupWidth + groupWidth / 2
       };
       const chart = { ctx: this.ctx, chartArea, scales: { x: xScale } };
+
       this.plugins.forEach((plugin) => {
         if (plugin && typeof plugin.afterDraw === "function") {
           plugin.afterDraw(chart);

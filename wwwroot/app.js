@@ -4,16 +4,22 @@ const compareView = document.getElementById("compareView");
 
 const commodityDropdown = document.getElementById("commodityDropdown");
 const expiryDropdown = document.getElementById("expiryDropdown");
+const rangeSelector = document.getElementById("rangeSelector");
 const loadBtn = document.getElementById("loadBtn");
 const refreshBtn = document.getElementById("refreshBtn");
+const ltpBox = document.getElementById("ltpBox");
 
 const goldExpiryDropdown = document.getElementById("goldExpiry");
 const goldLoadBtn = document.getElementById("goldLoadBtn");
 const goldmExpiryDropdown = document.getElementById("goldmExpiry");
 const goldmLoadBtn = document.getElementById("goldmLoadBtn");
 
-const chartInstances = new Map();
+const chartInstances = {};
 let isCompareMode = false;
+
+if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined") {
+  Chart.register(ChartDataLabels);
+}
 
 function setDisabled(el, disabled) {
   if (el) {
@@ -26,6 +32,7 @@ function setSingleLoading(isLoading) {
   setDisabled(refreshBtn, isLoading);
   setDisabled(commodityDropdown, isLoading);
   setDisabled(expiryDropdown, isLoading);
+  setDisabled(rangeSelector, isLoading);
 }
 
 function setCompareLoading(prefix, isLoading) {
@@ -84,16 +91,15 @@ function setViewMode(compare) {
 }
 
 function clearChart(canvasId) {
-  const existing = chartInstances.get(canvasId);
+  const existing = chartInstances[canvasId];
   if (existing) {
     existing.destroy();
-    chartInstances.delete(canvasId);
+    delete chartInstances[canvasId];
   }
 }
 
 function getEmoji(text) {
   if (!text) return "⚖️";
-
   if (text.includes("Strong Bullish")) return "🚀🐂";
   if (text.includes("Bullish")) return "🐂";
   if (text.includes("Strong Bearish")) return "💥🐻";
@@ -102,7 +108,6 @@ function getEmoji(text) {
   if (text.includes("Long Buildup")) return "📈";
   if (text.includes("Short Buildup")) return "📉";
   if (text.includes("Long Unwinding")) return "⚠️";
-
   return "⚖️";
 }
 
@@ -124,6 +129,29 @@ function getExplanation(signal) {
   return map[signal] || "";
 }
 
+function generateInsight(analysis) {
+  const signal = String(analysis?.oiSignal || "");
+  const sentiment = String(analysis?.marketSentiment?.label || "");
+
+  if (sentiment.includes("Bullish")) {
+    return "🐂 Bullish sentiment with buying support near ATM.";
+  }
+
+  if (sentiment.includes("Bearish")) {
+    return "🐻 Bearish pressure with resistance near ATM.";
+  }
+
+  if (signal === "Short Covering") {
+    return "🚀 Short covering seen -> possible upside move.";
+  }
+
+  if (signal === "Long Unwinding") {
+    return "⚠️ Long unwinding -> market losing strength.";
+  }
+
+  return "📊 Market is balanced around ATM with no strong bias.";
+}
+
 function parseExpiry(expiry) {
   if (typeof expiry !== "string" || expiry.length < 9) {
     return new Date(0);
@@ -134,18 +162,9 @@ function parseExpiry(expiry) {
   const year = parseInt(expiry.substring(5), 10);
 
   const months = {
-    JAN: 0,
-    FEB: 1,
-    MAR: 2,
-    APR: 3,
-    MAY: 4,
-    JUN: 5,
-    JUL: 6,
-    AUG: 7,
-    SEP: 8,
-    OCT: 9,
-    NOV: 10,
-    DEC: 11
+    JAN: 0, FEB: 1, MAR: 2, APR: 3,
+    MAY: 4, JUN: 5, JUL: 6, AUG: 7,
+    SEP: 8, OCT: 9, NOV: 10, DEC: 11
   };
 
   if (Number.isNaN(day) || Number.isNaN(year) || !(monthStr in months)) {
@@ -180,10 +199,10 @@ async function fetchExpiries(commodity, selectElement) {
     .slice()
     .sort((a, b) => parseExpiry(a) - parseExpiry(b))
     .forEach((exp) => {
-    const option = document.createElement("option");
-    option.value = exp;
-    option.textContent = exp;
-    selectElement.appendChild(option);
+      const option = document.createElement("option");
+      option.value = exp;
+      option.textContent = exp;
+      selectElement.appendChild(option);
     });
 
   if (previous && data.includes(previous)) {
@@ -283,7 +302,7 @@ function renderCards(data, containerPrefix = "") {
   }
 
   if (controls.explanationBox) {
-    controls.explanationBox.innerText = "📘 Insight: " + getExplanation(oiSignal);
+    controls.explanationBox.innerText = "📘 Insight: " + generateInsight(analysis);
   }
 }
 
@@ -296,20 +315,57 @@ function renderChart(data, canvasId) {
   clearChart(canvasId);
 
   const rows = [...data.data].sort((a, b) => Number(a.strikePrice) - Number(b.strikePrice));
-  const labels = rows.map((x) => x.strikePrice);
-  const callData = rows.map((x) => Number(x.callOI || 0));
-  const putData = rows.map((x) => Number(x.putOI || 0));
-  const strongestSupport = String(data.analysis?.strongestSupport ?? "");
-  const strongestResistance = String(data.analysis?.strongestResistance ?? "");
-  const maxPain = String(data.analysis?.maxPain ?? "");
-  const maxPainIndex = labels.findIndex((x) => String(x) === maxPain);
+  const analysis = data.analysis || {};
+  const atm = Number(analysis.atm || 0);
+  const rangeValue = document.getElementById("rangeSelector")?.value || "10";
 
-  const callColors = labels.map((value) =>
-    String(value) === strongestResistance ? "rgba(255, 59, 59, 0.95)" : "rgba(255, 59, 59, 0.45)"
+  let filteredData = rows;
+  const atmIndex = rows.findIndex((x) => Number(x.strikePrice) === atm);
+
+  if (rangeValue !== "all" && atmIndex !== -1) {
+    const range = parseInt(rangeValue, 10);
+    if (!Number.isNaN(range)) {
+      filteredData = rows.slice(Math.max(0, atmIndex - range), atmIndex + range + 1);
+    }
+  }
+
+  const importantStrikesSet = new Set([
+    Number(analysis.atm || 0),
+    Number(analysis.maxPain || 0),
+    Number(analysis.strongestSupport || 0),
+    Number(analysis.strongestResistance || 0)
+  ]);
+
+  const importantData = rows.filter((x) => importantStrikesSet.has(Number(x.strikePrice)));
+
+  filteredData = [
+    ...filteredData,
+    ...importantData
+  ].filter((value, index, array) =>
+    array.findIndex((entry) => Number(entry.strikePrice) === Number(value.strikePrice)) === index
   );
-  const putColors = labels.map((value) =>
-    String(value) === strongestSupport ? "rgba(0, 255, 0, 0.95)" : "rgba(0, 255, 0, 0.45)"
-  );
+
+  filteredData.sort((a, b) => Number(a.strikePrice) - Number(b.strikePrice));
+
+  const currentPrice = analysis.currentPrice;
+  if (ltpBox) {
+    if (currentPrice) {
+      ltpBox.innerText = `💰 ₹ ${Math.round(currentPrice).toLocaleString()}`;
+    } else if (analysis.atm) {
+      ltpBox.innerText = `ATM ₹ ${Number(analysis.atm).toLocaleString()} (approx)`;
+    } else {
+      ltpBox.innerText = "₹ --";
+    }
+  }
+
+  const labels = filteredData.map((x) => `${(Number(x.strikePrice) / 100000).toFixed(2)}L`);
+  const callData = filteredData.map((x) => Number(x.callOI || 0));
+  const putData = filteredData.map((x) => Number(x.putOI || 0));
+  const strongestSupport = Number(analysis.strongestSupport || 0);
+  const strongestResistance = Number(analysis.strongestResistance || 0);
+  const maxPain = Number(analysis.maxPain || 0);
+  const maxPainIndex = filteredData.findIndex((x) => Number(x.strikePrice) === maxPain);
+  const atmLabel = `${(atm / 100000).toFixed(2)}L`;
 
   const maxPainPlugin = {
     id: `maxPainLine-${canvasId}`,
@@ -337,74 +393,126 @@ function renderChart(data, canvasId) {
     }
   };
 
-  chartInstances.set(
-    canvasId,
-    new Chart(canvas, {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [
-          {
-            label: "Call OI",
-            data: callData,
-            backgroundColor: callColors,
-            borderColor: callColors,
-            borderWidth: 1
-          },
-          {
-            label: "Put OI",
-            data: putData,
-            backgroundColor: putColors,
-            borderColor: putColors,
-            borderWidth: 1
-          }
-        ]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        interaction: {
-          mode: "index",
-          intersect: false
+  const chart = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Call OI",
+          data: callData,
+          backgroundColor: filteredData.map((x) => {
+            const strike = Number(x.strikePrice);
+            if (strike === atm) return "#00ffff";
+            return "#ff3b3b";
+          }),
+          borderColor: filteredData.map((x) => {
+            const strike = Number(x.strikePrice);
+            if (strike === atm) return "#00ffff";
+            return "#ff3b3b";
+          }),
+          borderWidth: 1
         },
-        plugins: {
-          legend: {
-            labels: { color: "#e6eef7" }
-          },
-          tooltip: {
-            callbacks: {
-              title(items) {
-                const index = items[0].dataIndex;
-                return `Strike Price: ${labels[index]}`;
-              },
-              label(context) {
-                const index = context.dataIndex;
-                return [
-                  `Call OI: ${Number(callData[index] || 0).toLocaleString()}`,
-                  `Put OI: ${Number(putData[index] || 0).toLocaleString()}`
-                ];
+        {
+          label: "Put OI",
+          data: putData,
+          backgroundColor: filteredData.map((x) => {
+            const strike = Number(x.strikePrice);
+            if (strike === atm) return "#00ffff";
+            return "#00ff00";
+          }),
+          borderColor: filteredData.map((x) => {
+            const strike = Number(x.strikePrice);
+            if (strike === atm) return "#00ffff";
+            return "#00ff00";
+          }),
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: {
+        mode: "index",
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          labels: { color: "#e6eef7" }
+        },
+        datalabels: {
+          color: "#e6eef7",
+          anchor: "end",
+          align: "top",
+          font: { size: 10 },
+          formatter(value, context) {
+            const strike = Number(filteredData[context.dataIndex]?.strikePrice || 0);
+            if (importantStrikesSet.has(strike)) {
+              return `${(strike / 100000).toFixed(2)}L`;
+            }
+            return "";
+          }
+        },
+        annotation: {
+          annotations: {
+            atmLine: {
+              type: "line",
+              xMin: atmLabel,
+              xMax: atmLabel,
+              borderColor: "#00ffff",
+              borderWidth: 2,
+              label: {
+                display: true,
+                content: `ATM ${atmLabel}`,
+                color: "#00ffff",
+                backgroundColor: "#000",
+                position: "start"
               }
             }
           }
         },
-        scales: {
-          x: {
-            ticks: { color: "#e6eef7" },
-            title: { display: true, text: "Strike Price", color: "#e6eef7" },
-            grid: { color: "rgba(255,255,255,0.06)" }
-          },
-          y: {
-            beginAtZero: true,
-            ticks: { color: "#e6eef7" },
-            title: { display: true, text: "Open Interest", color: "#e6eef7" },
-            grid: { color: "rgba(255,255,255,0.06)" }
+        tooltip: {
+          callbacks: {
+            title(context) {
+              const index = context[0].dataIndex;
+              const strike = filteredData[index]?.strikePrice ?? 0;
+              return `Strike: ₹ ${Number(strike).toLocaleString()}`;
+            },
+            label(context) {
+              return `${context.dataset.label}: ${context.raw}`;
+            }
           }
         }
       },
-      plugins: [maxPainPlugin]
-    })
-  );
+      scales: {
+        x: {
+          ticks: {
+            color: "#e6eef7",
+            autoSkip: true,
+            maxTicksLimit: 12,
+            minRotation: 45,
+            maxRotation: 60,
+            callback(value, index) {
+              return index % 3 === 0 ? labels[index] : "";
+            }
+          },
+          title: { display: true, text: "Strike Price (₹ Lakhs)", color: "#e6eef7" },
+          grid: { color: "rgba(255,255,255,0.06)" }
+        },
+        y: {
+          beginAtZero: true,
+          ticks: { color: "#e6eef7" },
+          title: { display: true, text: "Open Interest", color: "#e6eef7" },
+          grid: { color: "rgba(255,255,255,0.06)" }
+        }
+      }
+    },
+    plugins: [maxPainPlugin]
+  });
+
+  chartInstances[canvasId] = chart;
 }
 
 async function loadSingleAnalysis() {
@@ -418,10 +526,6 @@ async function loadSingleAnalysis() {
     }
     return;
   }
-
-  const url = `/api/options/analysis?commodity=${encodeURIComponent(commodity)}&expiry=${encodeURIComponent(expiry)}`;
-  console.log("Calling API:", commodity, expiry);
-  console.log("Analysis URL:", url);
 
   setSingleLoading(true);
   try {
@@ -507,6 +611,10 @@ function wireEvents() {
 
   if (commodityDropdown) {
     commodityDropdown.addEventListener("change", () => loadSingleExpiriesAndAnalysis());
+  }
+
+  if (rangeSelector) {
+    rangeSelector.addEventListener("change", () => loadSingleAnalysis());
   }
 
   if (goldLoadBtn) {

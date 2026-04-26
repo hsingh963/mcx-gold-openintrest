@@ -6,6 +6,7 @@ public class OIAnalysisResult
     public decimal StrongestSupport { get; set; }
     public decimal StrongestResistance { get; set; }
     public decimal Atm { get; set; }
+    public decimal? CurrentPrice { get; set; }
     public string OiSignal { get; set; } = string.Empty;
     public MarketSentiment MarketSentiment { get; set; } = new();
     public List<decimal> TopSupports { get; set; } = [];

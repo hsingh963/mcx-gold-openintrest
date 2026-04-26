@@ -6,6 +6,7 @@
   <title>MCX Trading Terminal</title>
   <script src="/lib/chartjs/chart.umd.js"></script>
   <script src="/lib/chartjs/chartjs-plugin-annotation.min.js"></script>
+  <script src="/lib/chartjs/chartjs-plugin-datalabels.min.js"></script>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
@@ -13,18 +14,29 @@
     <div class="container">
       <h1>MCX Trading Terminal</h1>
 
-      <div class="controls">
-        <button id="compareToggle" type="button">🔀 Compare Mode</button>
+      <div class="top-bar">
+        <div class="controls">
+          <button id="compareToggle" type="button">🔀 Compare Mode</button>
 
-        <select id="commodityDropdown">
-          <option value="GOLD">GOLD</option>
-          <option value="GOLDM">GOLD MINI</option>
-        </select>
+          <select id="commodityDropdown">
+            <option value="GOLD">GOLD</option>
+            <option value="GOLDM">GOLD MINI</option>
+          </select>
 
-        <select id="expiryDropdown"></select>
+          <select id="expiryDropdown"></select>
 
-        <button id="loadBtn" type="button">🚀 Load Data</button>
-        <button id="refreshBtn" type="button">🔄 Refresh</button>
+          <select id="rangeSelector">
+            <option value="all">All</option>
+            <option value="5">±5 strikes</option>
+            <option value="10" selected>±10 strikes</option>
+            <option value="20">±20 strikes</option>
+          </select>
+
+          <button id="loadBtn" type="button">🚀 Load Data</button>
+          <button id="refreshBtn" type="button">🔄 Refresh</button>
+        </div>
+
+        <div id="ltpBox" class="ltp-box">₹ --</div>
       </div>
 
       <div id="singleView">

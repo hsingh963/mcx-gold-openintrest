@@ -66,7 +66,8 @@ public sealed class AnalysisService
             .Select(x => x.StrikePrice)
             .ToList();
 
-        var atm = ResolveAtmStrike(data);
+        var currentPrice = ResolveCurrentPrice(data);
+        var atm = ResolveAtmStrike(data, currentPrice);
         var atmRow = GetAtmRow(data, atm);
         var oiSignal = BuildOiSignal(atmRow);
         var sentiment = BuildMarketSentiment(pcr, data, atmRow, strongestSupport, strongestResistance);
@@ -82,11 +83,12 @@ public sealed class AnalysisService
             MarketSentiment = sentiment,
             TopSupports = topSupports,
             TopResistances = topResistances,
-            PCR = pcr
+            PCR = pcr,
+            CurrentPrice = currentPrice
         };
     }
 
-    private static decimal ResolveAtmStrike(IReadOnlyList<OptionData> data)
+    private static decimal ResolveAtmStrike(IReadOnlyList<OptionData> data, decimal? currentPrice)
     {
         var strikes = data.Select(x => x.StrikePrice).Distinct().OrderBy(x => x).ToArray();
         if (strikes.Length == 0)
@@ -94,17 +96,18 @@ public sealed class AnalysisService
             return 0m;
         }
 
-        var candidate = TryResolveUnderlying(data, out var underlying)
-            ? underlying
-            : (strikes.First() + strikes.Last()) / 2m;
+        var candidate = currentPrice ?? (strikes.First() + strikes.Last()) / 2m;
 
         return strikes.OrderBy(strike => Math.Abs(strike - candidate)).First();
     }
 
-    private static bool TryResolveUnderlying(IReadOnlyList<OptionData> data, out decimal underlying)
+    private static decimal? ResolveCurrentPrice(IReadOnlyList<OptionData> data)
     {
-        underlying = 0m;
-        return false;
+        var underlying = data
+            .Select(x => x.UnderlyingValue)
+            .FirstOrDefault(x => x.HasValue && x.Value > 0m);
+
+        return underlying;
     }
 
     private static OptionData GetAtmRow(IReadOnlyList<OptionData> data, decimal atm)

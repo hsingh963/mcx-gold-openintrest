@@ -156,19 +156,18 @@ public sealed class McxService : IMcxService
             return Array.Empty<OptionData>();
         }
 
-        var underlyingPrice = ExtractUnderlyingPrice(document.RootElement);
-        if (underlyingPrice == 0)
-        {
-            underlyingPrice = ExtractUnderlyingPrice(dataNode);
-        }
-
         var results = new List<OptionData>();
+        decimal? underlyingPrice = null;
         foreach (var row in rows.Value.EnumerateArray())
         {
             if (row.ValueKind != JsonValueKind.Object)
             {
                 continue;
             }
+
+            underlyingPrice ??= TryReadDecimal(row, out var underlying, "UnderlyingValue")
+                ? underlying
+                : ExtractUnderlyingPrice(row);
 
             if (!TryReadDecimal(row, out var strike, "CE_StrikePrice"))
             {
@@ -188,6 +187,7 @@ public sealed class McxService : IMcxService
             results.Add(new OptionData
             {
                 StrikePrice = strike,
+                UnderlyingValue = underlyingPrice,
                 CallOI = call,
                 PutOI = put,
                 CallOIChange = callChange,

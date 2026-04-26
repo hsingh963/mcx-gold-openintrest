@@ -115,6 +115,7 @@ public sealed class OptionsController : ControllerBase
                     pcr = analysis.PCR,
                     maxPain = analysis.MaxPain,
                     atm = analysis.Atm,
+                    currentPrice = analysis.CurrentPrice,
                     oiSignal = analysis.OiSignal,
                     marketSentiment = analysis.MarketSentiment,
                     strongestSupport = analysis.StrongestSupport,
