@@ -92,11 +92,17 @@ function clearChart(canvasId) {
 }
 
 function getEmoji(text) {
-  const value = String(text || "");
-  if (value.includes("Bull")) return "🐂";
-  if (value.includes("Bear")) return "🐻";
-  if (value.includes("Short Covering")) return "🚀";
-  if (value.includes("Long Unwinding")) return "📉";
+  if (!text) return "⚖️";
+
+  if (text.includes("Strong Bullish")) return "🚀🐂";
+  if (text.includes("Bullish")) return "🐂";
+  if (text.includes("Strong Bearish")) return "💥🐻";
+  if (text.includes("Bearish")) return "🐻";
+  if (text.includes("Short Covering")) return "🚀";
+  if (text.includes("Long Buildup")) return "📈";
+  if (text.includes("Short Buildup")) return "📉";
+  if (text.includes("Long Unwinding")) return "⚠️";
+
   return "⚖️";
 }
 
@@ -116,6 +122,37 @@ function getExplanation(signal) {
   };
 
   return map[signal] || "";
+}
+
+function parseExpiry(expiry) {
+  if (typeof expiry !== "string" || expiry.length < 9) {
+    return new Date(0);
+  }
+
+  const day = parseInt(expiry.substring(0, 2), 10);
+  const monthStr = expiry.substring(2, 5).toUpperCase();
+  const year = parseInt(expiry.substring(5), 10);
+
+  const months = {
+    JAN: 0,
+    FEB: 1,
+    MAR: 2,
+    APR: 3,
+    MAY: 4,
+    JUN: 5,
+    JUL: 6,
+    AUG: 7,
+    SEP: 8,
+    OCT: 9,
+    NOV: 10,
+    DEC: 11
+  };
+
+  if (Number.isNaN(day) || Number.isNaN(year) || !(monthStr in months)) {
+    return new Date(0);
+  }
+
+  return new Date(year, months[monthStr], day);
 }
 
 async function fetchExpiries(commodity, selectElement) {
@@ -139,12 +176,15 @@ async function fetchExpiries(commodity, selectElement) {
   const previous = selectElement.value;
   selectElement.innerHTML = "";
 
-  data.forEach((exp) => {
+  data
+    .slice()
+    .sort((a, b) => parseExpiry(a) - parseExpiry(b))
+    .forEach((exp) => {
     const option = document.createElement("option");
     option.value = exp;
     option.textContent = exp;
     selectElement.appendChild(option);
-  });
+    });
 
   if (previous && data.includes(previous)) {
     selectElement.value = previous;
@@ -226,24 +266,24 @@ function renderCards(data, containerPrefix = "") {
   if (controls.pcrCard) {
     const pcrClass = getClass(pcr > 1.2 ? "Bull" : pcr < 0.8 ? "Bear" : "Neutral");
     controls.pcrCard.className = `card ${pcrClass}`;
-    controls.pcrCard.innerHTML = `<h3>PCR</h3><p>${pcr.toFixed(2)}</p>`;
+    controls.pcrCard.innerHTML = `<h3>📈 PCR</h3><p>${pcr.toFixed(2)}</p>`;
   }
 
   if (controls.oiCard) {
     controls.oiCard.className = `card ${getClass(oiSignal)}`;
-    controls.oiCard.innerHTML = `<h3>OI Signal</h3><p>${getEmoji(oiSignal)} ${oiSignal}</p>`;
+    controls.oiCard.innerHTML = `<h3>⚡ OI Signal</h3><p>${getEmoji(oiSignal)} ${oiSignal}</p>`;
   }
 
   if (controls.sentimentCard) {
     controls.sentimentCard.className = `card ${getClass(sentimentLabel)}`;
     controls.sentimentCard.innerHTML =
-      `<h3>Sentiment</h3>
+      `<h3>🧠 Market Sentiment</h3>
        <p>${getEmoji(sentimentLabel)} ${sentimentLabel}</p>
        <small>${sentimentReason}</small>`;
   }
 
   if (controls.explanationBox) {
-    controls.explanationBox.innerText = getExplanation(oiSignal);
+    controls.explanationBox.innerText = "📘 Insight: " + getExplanation(oiSignal);
   }
 }
 
@@ -297,71 +337,74 @@ function renderChart(data, canvasId) {
     }
   };
 
-  chartInstances.set(canvasId, new Chart(canvas, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          label: "Call OI",
-          data: callData,
-          backgroundColor: callColors,
-          borderColor: callColors,
-          borderWidth: 1
-        },
-        {
-          label: "Put OI",
-          data: putData,
-          backgroundColor: putColors,
-          borderColor: putColors,
-          borderWidth: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      interaction: {
-        mode: "index",
-        intersect: false
+  chartInstances.set(
+    canvasId,
+    new Chart(canvas, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Call OI",
+            data: callData,
+            backgroundColor: callColors,
+            borderColor: callColors,
+            borderWidth: 1
+          },
+          {
+            label: "Put OI",
+            data: putData,
+            backgroundColor: putColors,
+            borderColor: putColors,
+            borderWidth: 1
+          }
+        ]
       },
-      plugins: {
-        legend: {
-          labels: { color: "#e6eef7" }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: {
+          mode: "index",
+          intersect: false
         },
-        tooltip: {
-          callbacks: {
-            title(items) {
-              const index = items[0].dataIndex;
-              return `Strike Price: ${labels[index]}`;
-            },
-            label(context) {
-              const index = context.dataIndex;
-              return [
-                `Call OI: ${Number(callData[index] || 0).toLocaleString()}`,
-                `Put OI: ${Number(putData[index] || 0).toLocaleString()}`
-              ];
+        plugins: {
+          legend: {
+            labels: { color: "#e6eef7" }
+          },
+          tooltip: {
+            callbacks: {
+              title(items) {
+                const index = items[0].dataIndex;
+                return `Strike Price: ${labels[index]}`;
+              },
+              label(context) {
+                const index = context.dataIndex;
+                return [
+                  `Call OI: ${Number(callData[index] || 0).toLocaleString()}`,
+                  `Put OI: ${Number(putData[index] || 0).toLocaleString()}`
+                ];
+              }
             }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: "#e6eef7" },
+            title: { display: true, text: "Strike Price", color: "#e6eef7" },
+            grid: { color: "rgba(255,255,255,0.06)" }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: "#e6eef7" },
+            title: { display: true, text: "Open Interest", color: "#e6eef7" },
+            grid: { color: "rgba(255,255,255,0.06)" }
           }
         }
       },
-      scales: {
-        x: {
-          ticks: { color: "#e6eef7" },
-          title: { display: true, text: "Strike Price", color: "#e6eef7" },
-          grid: { color: "rgba(255,255,255,0.06)" }
-        },
-        y: {
-          beginAtZero: true,
-          ticks: { color: "#e6eef7" },
-          title: { display: true, text: "Open Interest", color: "#e6eef7" },
-          grid: { color: "rgba(255,255,255,0.06)" }
-        }
-      }
-    },
-    plugins: [maxPainPlugin]
-  }));
+      plugins: [maxPainPlugin]
+    })
+  );
 }
 
 async function loadSingleAnalysis() {

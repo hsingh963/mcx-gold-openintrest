@@ -43,6 +43,12 @@ h1 {
   font-size: 1.8rem;
 }
 
+h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .controls,
 .panel-controls {
   display: flex;

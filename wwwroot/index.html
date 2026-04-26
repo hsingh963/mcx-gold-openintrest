@@ -14,7 +14,7 @@
       <h1>MCX Trading Terminal</h1>
 
       <div class="controls">
-        <button id="compareToggle" type="button">Compare Mode</button>
+        <button id="compareToggle" type="button">🔀 Compare Mode</button>
 
         <select id="commodityDropdown">
           <option value="GOLD">GOLD</option>
@@ -23,8 +23,8 @@
 
         <select id="expiryDropdown"></select>
 
-        <button id="loadBtn" type="button">Load Data</button>
-        <button id="refreshBtn" type="button">Refresh</button>
+        <button id="loadBtn" type="button">🚀 Load Data</button>
+        <button id="refreshBtn" type="button">🔄 Refresh</button>
       </div>
 
       <div id="singleView">
@@ -37,6 +37,7 @@
         <div id="explanationBox" class="explanation"></div>
 
         <div class="chart-container">
+          <h3>📊 Option Chain OI</h3>
           <canvas id="oiChart"></canvas>
         </div>
       </div>
@@ -44,10 +45,10 @@
       <div id="compareView" class="hidden">
         <div class="compare-container">
           <div class="panel" id="goldPanel">
-            <h3>GOLD</h3>
+            <h3>🟡 GOLD</h3>
             <div class="panel-controls">
               <select id="goldExpiry"></select>
-              <button id="goldLoadBtn" type="button">Load</button>
+              <button id="goldLoadBtn" type="button">🚀 Load Data</button>
             </div>
             <div class="cards panel-cards">
               <div class="card" id="goldPcrCard"></div>
@@ -61,10 +62,10 @@
           </div>
 
           <div class="panel" id="goldmPanel">
-            <h3>GOLD MINI</h3>
+            <h3>⚪ GOLD MINI</h3>
             <div class="panel-controls">
               <select id="goldmExpiry"></select>
-              <button id="goldmLoadBtn" type="button">Load</button>
+              <button id="goldmLoadBtn" type="button">🚀 Load Data</button>
             </div>
             <div class="cards panel-cards">
               <div class="card" id="goldmPcrCard"></div>
