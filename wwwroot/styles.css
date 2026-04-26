@@ -1,0 +1,101 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: linear-gradient(180deg, #f7f7f3 0%, #ece6d8 100%);
+  color: #1f1f1f;
+}
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.card {
+  width: min(1100px, 100%);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid #ddd5c2;
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(54, 46, 24, 0.12);
+  padding: 28px;
+}
+
+.header h1 {
+  margin: 0 0 8px;
+  font-size: clamp(28px, 4vw, 40px);
+}
+
+.header p {
+  margin: 0 0 24px;
+  color: #5b5345;
+}
+
+.controls {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+}
+
+label {
+  font-weight: 700;
+}
+
+select,
+button {
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid #c9bea7;
+  padding: 0 14px;
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: #1f4f46;
+  color: #fff;
+  border-color: #1f4f46;
+}
+
+button.secondary {
+  background: #fff;
+  color: #1f1f1f;
+}
+
+button:disabled,
+select:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.status {
+  margin: 18px 0;
+  min-height: 24px;
+  color: #5b5345;
+}
+
+.chart-wrap {
+  width: 100%;
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid #e3dac8;
+  background: #fff;
+}
+
+#chartImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-width: 720px;
+}

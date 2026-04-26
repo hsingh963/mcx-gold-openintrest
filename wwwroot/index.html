@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MCX Gold Option Chain</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="card">
+      <div class="header">
+        <h1>MCX Gold Option Chain</h1>
+        <p>Load the current option-chain graph for a selected expiry.</p>
+      </div>
+
+      <div class="controls">
+        <label for="expiryDropdown">Expiry</label>
+        <select id="expiryDropdown"></select>
+
+        <div class="actions">
+          <button id="loadBtn" type="button">Load Data</button>
+          <button id="refreshBtn" type="button" class="secondary">Refresh</button>
+        </div>
+      </div>
+
+      <div id="status" class="status">Loading expiries...</div>
+
+      <div class="chart-wrap">
+        <img id="chartImage" alt="MCX Gold Option Chain Graph" />
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
