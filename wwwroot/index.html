@@ -16,6 +16,12 @@
       </div>
 
       <div class="controls">
+        <label for="commodityDropdown">Commodity</label>
+        <select id="commodityDropdown">
+          <option value="GOLD">GOLD</option>
+          <option value="GOLDM">GOLDM</option>
+        </select>
+
         <label for="expiryDropdown">Expiry</label>
         <select id="expiryDropdown"></select>
 
@@ -26,6 +32,12 @@
       </div>
 
       <div id="status" class="status">Loading expiries...</div>
+
+      <div class="cards">
+        <div class="card" id="pcrCard"></div>
+        <div class="card" id="oiCard"></div>
+        <div class="card" id="sentimentCard"></div>
+      </div>
 
       <div class="chart-wrap">
         <canvas id="oiChart"></canvas>
@@ -39,6 +51,8 @@
         </div>
         <div id="pcrLabel"></div>
       </div>
+
+      <div id="explanationBox"></div>
     </section>
   </main>
 

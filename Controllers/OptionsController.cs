@@ -25,11 +25,12 @@ public sealed class OptionsController : ControllerBase
         _logger = logger;
     }
 
-    [HttpGet("/api/options/expiries")]
+    [HttpGet("expiries")]
     [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetExpiries(CancellationToken cancellationToken)
+    public async Task<IActionResult> GetExpiries([FromQuery] string commodity = "GOLD")
     {
-        var expiries = await _expiryService.GetExpiriesAsync(cancellationToken);
+        _logger.LogInformation("Loading expiries for commodity {Commodity}", NormalizeCommodity(commodity));
+        var expiries = await _expiryService.GetExpiriesAsync(HttpContext.RequestAborted);
         return Ok(expiries);
     }
 
@@ -71,13 +72,16 @@ public sealed class OptionsController : ControllerBase
         }
     }
 
-    [HttpGet("gold/analysis")]
+    [HttpGet("analysis")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status502BadGateway)]
-    public async Task<IActionResult> GetGoldAnalysis([FromQuery] string expiry, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAnalysis([FromQuery] string commodity, [FromQuery] string expiry)
     {
+        var normalizedCommodity = NormalizeCommodity(commodity);
+        _logger.LogInformation("Analysis request received for {Commodity} {Expiry}", normalizedCommodity, expiry);
+
         if (!McxService.TryNormalizeExpiry(expiry, out var normalizedExpiry, out var validationProblem))
         {
             return BadRequest(validationProblem);
@@ -85,13 +89,13 @@ public sealed class OptionsController : ControllerBase
 
         try
         {
-            var options = await _mcxService.GetGoldOptionsAsync(normalizedExpiry, cancellationToken);
+            var options = await _mcxService.GetOptionsAsync(normalizedCommodity, normalizedExpiry, HttpContext.RequestAborted);
             if (options.Count == 0)
             {
                 return NotFound(new ProblemDetails
                 {
                     Title = "No option chain data returned",
-                    Detail = $"MCX returned no rows for GOLD expiry {normalizedExpiry}.",
+                    Detail = $"MCX returned no rows for {normalizedCommodity} expiry {normalizedExpiry}.",
                     Status = StatusCodes.Status404NotFound
                 });
             }
@@ -109,6 +113,9 @@ public sealed class OptionsController : ControllerBase
                 {
                     pcr = analysis.PCR,
                     maxPain = analysis.MaxPain,
+                    atm = analysis.Atm,
+                    oiSignal = analysis.OiSignal,
+                    marketSentiment = analysis.MarketSentiment,
                     strongestSupport = analysis.StrongestSupport,
                     strongestResistance = analysis.StrongestResistance,
                     topSupports = analysis.TopSupports,
@@ -118,7 +125,7 @@ public sealed class OptionsController : ControllerBase
         }
         catch (McxUpstreamException ex)
         {
-            _logger.LogWarning(ex, "Failed to analyze GOLD option chain for expiry {Expiry}", normalizedExpiry);
+            _logger.LogWarning(ex, "Failed to analyze MCX option chain for {Commodity} expiry {Expiry}", normalizedCommodity, normalizedExpiry);
             return StatusCode((int)ex.StatusCode, new ProblemDetails
             {
                 Title = "MCX upstream request failed",
@@ -126,5 +133,19 @@ public sealed class OptionsController : ControllerBase
                 Status = (int)ex.StatusCode
             });
         }
+    }
+
+    [HttpGet("gold/analysis")]
+    [HttpGet("goldm/analysis")]
+    public Task<IActionResult> GetLegacyAnalysis([FromQuery] string expiry, CancellationToken cancellationToken)
+    {
+        var commodity = Request.Path.Value?.Contains("goldm", StringComparison.OrdinalIgnoreCase) == true ? "GOLDM" : "GOLD";
+        return GetAnalysis(commodity, expiry);
+    }
+
+    private static string NormalizeCommodity(string? commodity)
+    {
+        var normalized = (commodity ?? string.Empty).Trim().ToUpperInvariant();
+        return normalized is "GOLD" or "GOLDM" ? normalized : "GOLD";
     }
 }

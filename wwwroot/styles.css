@@ -73,6 +73,38 @@ select:disabled {
   cursor: not-allowed;
 }
 
+.cards {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin: 18px 0;
+}
+
+.cards .card {
+  flex: 1 1 220px;
+  padding: 15px;
+  border-radius: 10px;
+  margin: 0;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border: 1px solid #ece3d1;
+}
+
+.cards .card h3 {
+  margin: 0 0 8px;
+}
+
+.cards .card .value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.cards .card .label {
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
 .actions {
   display: flex;
   gap: 10px;
@@ -139,4 +171,14 @@ select:disabled {
   margin-top: 10px;
   font-weight: 700;
   font-size: 1rem;
+}
+
+#explanationBox {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid #d7c8ad;
+  background: #fffdf8;
+  color: #3d3423;
+  line-height: 1.5;
 }
