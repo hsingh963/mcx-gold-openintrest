@@ -1,10 +1,11 @@
+using System.Text.Json;
 using Microsoft.Extensions.Caching.Memory;
 
 namespace GoldInrOpenIntrest.Api.Services;
 
 public sealed class ExpiryService
 {
-    private const string CacheKey = "mcx:expiries";
+    private const string CachePrefix = "mcx:expiries:";
 
     private readonly IMemoryCache _cache;
     private readonly IHostEnvironment _environment;
@@ -17,32 +18,58 @@ public sealed class ExpiryService
         _logger = logger;
     }
 
-    public Task<IReadOnlyList<string>> GetExpiriesAsync(CancellationToken cancellationToken)
+    public Task<IReadOnlyList<string>> GetExpiriesAsync(string commodity, CancellationToken cancellationToken)
     {
-        return _cache.GetOrCreateAsync<IReadOnlyList<string>>(CacheKey, async entry =>
+        var normalizedCommodity = NormalizeCommodity(commodity);
+        var cacheKey = $"{CachePrefix}{normalizedCommodity}";
+
+        return _cache.GetOrCreateAsync<IReadOnlyList<string>>(cacheKey, async entry =>
         {
             entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(2);
             entry.Priority = CacheItemPriority.Normal;
-            return await LoadExpiriesAsync(cancellationToken);
+            return await LoadExpiriesAsync(normalizedCommodity, cancellationToken);
         })!;
     }
 
-    private Task<IReadOnlyList<string>> LoadExpiriesAsync(CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<string>> LoadExpiriesAsync(string commodity, CancellationToken cancellationToken)
     {
-        var filePath = Path.Combine(_environment.ContentRootPath, "expiries.txt");
+        var filePath = Path.Combine(_environment.ContentRootPath, "expiries.json");
         if (!File.Exists(filePath))
         {
             _logger.LogWarning("Expiry file not found at {Path}", filePath);
-            return Task.FromResult<IReadOnlyList<string>>(Array.Empty<string>());
+            return Array.Empty<string>();
         }
 
-        var values = File.ReadAllLines(filePath)
-            .Select(x => x.Trim().ToUpperInvariant())
+        await using var stream = File.OpenRead(filePath);
+        var expiries = await JsonSerializer.DeserializeAsync<Dictionary<string, List<string>>>(
+            stream,
+            new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            },
+            cancellationToken);
+
+        if (expiries is null || expiries.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        if (!expiries.TryGetValue(commodity, out var values) || values is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        return values
             .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim().ToUpperInvariant())
             .Distinct()
             .OrderBy(x => x)
             .ToArray();
+    }
 
-        return Task.FromResult<IReadOnlyList<string>>(values);
+    private static string NormalizeCommodity(string? commodity)
+    {
+        var normalized = (commodity ?? string.Empty).Trim().ToUpperInvariant();
+        return normalized is "GOLD" or "GOLDM" ? normalized : "GOLD";
     }
 }

@@ -3,58 +3,83 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MCX Gold Option Chain</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <title>MCX Trading Terminal</title>
+  <script src="/lib/chartjs/chart.umd.js"></script>
+  <script src="/lib/chartjs/chartjs-plugin-annotation.min.js"></script>
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
-  <main class="shell">
-    <section class="card">
-      <div class="header">
-        <h1>MCX Gold Option Chain</h1>
-        <p>Load the current option-chain graph for a selected expiry.</p>
-      </div>
+  <div class="terminal-shell">
+    <div class="container">
+      <h1>MCX Trading Terminal</h1>
 
       <div class="controls">
-        <label for="commodityDropdown">Commodity</label>
+        <button id="compareToggle" type="button">Compare Mode</button>
+
         <select id="commodityDropdown">
           <option value="GOLD">GOLD</option>
-          <option value="GOLDM">GOLDM</option>
+          <option value="GOLDM">GOLD MINI</option>
         </select>
 
-        <label for="expiryDropdown">Expiry</label>
         <select id="expiryDropdown"></select>
 
-        <div class="actions">
-          <button id="loadBtn" type="button">Load Data</button>
-          <button id="refreshBtn" type="button" class="secondary">Refresh</button>
+        <button id="loadBtn" type="button">Load Data</button>
+        <button id="refreshBtn" type="button">Refresh</button>
+      </div>
+
+      <div id="singleView">
+        <div class="cards">
+          <div class="card" id="pcrCard"></div>
+          <div class="card" id="oiCard"></div>
+          <div class="card" id="sentimentCard"></div>
+        </div>
+
+        <div id="explanationBox" class="explanation"></div>
+
+        <div class="chart-container">
+          <canvas id="oiChart"></canvas>
         </div>
       </div>
 
-      <div id="status" class="status">Loading expiries...</div>
+      <div id="compareView" class="hidden">
+        <div class="compare-container">
+          <div class="panel" id="goldPanel">
+            <h3>GOLD</h3>
+            <div class="panel-controls">
+              <select id="goldExpiry"></select>
+              <button id="goldLoadBtn" type="button">Load</button>
+            </div>
+            <div class="cards panel-cards">
+              <div class="card" id="goldPcrCard"></div>
+              <div class="card" id="goldOiCard"></div>
+              <div class="card" id="goldSentimentCard"></div>
+            </div>
+            <div id="goldExplanationBox" class="explanation"></div>
+            <div class="chart-container panel-chart">
+              <canvas id="goldChart"></canvas>
+            </div>
+          </div>
 
-      <div class="cards">
-        <div class="card" id="pcrCard"></div>
-        <div class="card" id="oiCard"></div>
-        <div class="card" id="sentimentCard"></div>
-      </div>
-
-      <div class="chart-wrap">
-        <canvas id="oiChart"></canvas>
-      </div>
-
-      <div id="pcrContainer">
-        <h3>PCR Meter</h3>
-        <div id="pcrValue"></div>
-        <div id="pcrBar">
-          <div id="pcrFill"></div>
+          <div class="panel" id="goldmPanel">
+            <h3>GOLD MINI</h3>
+            <div class="panel-controls">
+              <select id="goldmExpiry"></select>
+              <button id="goldmLoadBtn" type="button">Load</button>
+            </div>
+            <div class="cards panel-cards">
+              <div class="card" id="goldmPcrCard"></div>
+              <div class="card" id="goldmOiCard"></div>
+              <div class="card" id="goldmSentimentCard"></div>
+            </div>
+            <div id="goldmExplanationBox" class="explanation"></div>
+            <div class="chart-container panel-chart">
+              <canvas id="goldmChart"></canvas>
+            </div>
+          </div>
         </div>
-        <div id="pcrLabel"></div>
       </div>
-
-      <div id="explanationBox"></div>
-    </section>
-  </main>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

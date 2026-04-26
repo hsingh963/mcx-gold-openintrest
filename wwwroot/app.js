@@ -1,172 +1,278 @@
-const expiryDropdown = document.getElementById("expiryDropdown");
+const compareToggle = document.getElementById("compareToggle");
+const singleView = document.getElementById("singleView");
+const compareView = document.getElementById("compareView");
+
 const commodityDropdown = document.getElementById("commodityDropdown");
+const expiryDropdown = document.getElementById("expiryDropdown");
 const loadBtn = document.getElementById("loadBtn");
 const refreshBtn = document.getElementById("refreshBtn");
-const chartCanvas = document.getElementById("oiChart");
-const statusText = document.getElementById("status");
-const pcrValue = document.getElementById("pcrValue");
-const pcrFill = document.getElementById("pcrFill");
-const pcrLabel = document.getElementById("pcrLabel");
-const pcrCard = document.getElementById("pcrCard");
-const oiCard = document.getElementById("oiCard");
-const sentimentCard = document.getElementById("sentimentCard");
-const explanationBox = document.getElementById("explanationBox");
-let oiChart = null;
 
-function setLoading(isLoading, message) {
-  loadBtn.disabled = isLoading;
-  refreshBtn.disabled = isLoading;
-  expiryDropdown.disabled = isLoading;
-  commodityDropdown.disabled = isLoading;
-  statusText.textContent = message;
+const goldExpiryDropdown = document.getElementById("goldExpiry");
+const goldLoadBtn = document.getElementById("goldLoadBtn");
+const goldmExpiryDropdown = document.getElementById("goldmExpiry");
+const goldmLoadBtn = document.getElementById("goldmLoadBtn");
+
+const chartInstances = new Map();
+let isCompareMode = false;
+
+function setDisabled(el, disabled) {
+  if (el) {
+    el.disabled = disabled;
+  }
 }
 
-async function loadExpiries() {
+function setSingleLoading(isLoading) {
+  setDisabled(loadBtn, isLoading);
+  setDisabled(refreshBtn, isLoading);
+  setDisabled(commodityDropdown, isLoading);
+  setDisabled(expiryDropdown, isLoading);
+}
+
+function setCompareLoading(prefix, isLoading) {
+  const controls = getPanelControls(prefix);
+  setDisabled(controls.loadBtn, isLoading);
+  setDisabled(controls.expiryDropdown, isLoading);
+}
+
+function getPanelControls(prefix) {
+  if (prefix === "gold") {
+    return {
+      expiryDropdown: goldExpiryDropdown,
+      loadBtn: goldLoadBtn,
+      explanationBox: document.getElementById("goldExplanationBox"),
+      chartId: "goldChart",
+      pcrCard: document.getElementById("goldPcrCard"),
+      oiCard: document.getElementById("goldOiCard"),
+      sentimentCard: document.getElementById("goldSentimentCard")
+    };
+  }
+
+  if (prefix === "goldm") {
+    return {
+      expiryDropdown: goldmExpiryDropdown,
+      loadBtn: goldmLoadBtn,
+      explanationBox: document.getElementById("goldmExplanationBox"),
+      chartId: "goldmChart",
+      pcrCard: document.getElementById("goldmPcrCard"),
+      oiCard: document.getElementById("goldmOiCard"),
+      sentimentCard: document.getElementById("goldmSentimentCard")
+    };
+  }
+
+  return {
+    expiryDropdown,
+    loadBtn,
+    explanationBox: document.getElementById("explanationBox"),
+    chartId: "oiChart",
+    pcrCard: document.getElementById("pcrCard"),
+    oiCard: document.getElementById("oiCard"),
+    sentimentCard: document.getElementById("sentimentCard")
+  };
+}
+
+function setViewMode(compare) {
+  isCompareMode = compare;
+  if (singleView) {
+    singleView.classList.toggle("hidden", compare);
+  }
+  if (compareView) {
+    compareView.classList.toggle("hidden", !compare);
+  }
+  if (compareToggle) {
+    compareToggle.textContent = compare ? "Single Mode" : "Compare Mode";
+  }
+}
+
+function clearChart(canvasId) {
+  const existing = chartInstances.get(canvasId);
+  if (existing) {
+    existing.destroy();
+    chartInstances.delete(canvasId);
+  }
+}
+
+function getEmoji(text) {
+  const value = String(text || "");
+  if (value.includes("Bull")) return "🐂";
+  if (value.includes("Bear")) return "🐻";
+  if (value.includes("Short Covering")) return "🚀";
+  if (value.includes("Long Unwinding")) return "📉";
+  return "⚖️";
+}
+
+function getClass(text) {
+  const value = String(text || "");
+  if (value.includes("Bull")) return "bullish";
+  if (value.includes("Bear")) return "bearish";
+  return "neutral";
+}
+
+function getExplanation(signal) {
+  const map = {
+    "Long Buildup": "New buying positions are being created. Traders expect prices to rise.",
+    "Short Buildup": "New short positions are being created. Traders expect prices to fall.",
+    "Short Covering": "Short sellers are exiting positions. This can push prices up.",
+    "Long Unwinding": "Buyers are exiting positions. This can push prices down."
+  };
+
+  return map[signal] || "";
+}
+
+async function fetchExpiries(commodity, selectElement) {
+  const url = `/api/options/expiries?commodity=${encodeURIComponent(commodity)}`;
+  console.log("Fetching expiries:", url);
+
+  const response = await fetch(url);
+  console.log("Expiry response status:", response.status);
+
+  if (!response.ok) {
+    const body = await response.text();
+    console.error("Expiry response body:", body);
+    throw new Error("Failed to load expiries");
+  }
+
+  const data = await response.json();
+  if (!selectElement) {
+    return data;
+  }
+
+  const previous = selectElement.value;
+  selectElement.innerHTML = "";
+
+  data.forEach((exp) => {
+    const option = document.createElement("option");
+    option.value = exp;
+    option.textContent = exp;
+    selectElement.appendChild(option);
+  });
+
+  if (previous && data.includes(previous)) {
+    selectElement.value = previous;
+  } else if (data.length > 0) {
+    selectElement.value = data[0];
+  }
+
+  return data;
+}
+
+async function loadSingleExpiries() {
   try {
-    setLoading(true, "Loading expiries...");
-    const commodity = document.getElementById("commodityDropdown").value || "GOLD";
-    const url = `/api/options/expiries?commodity=${encodeURIComponent(commodity)}`;
-    console.log("Fetching expiries URL:", url);
-
-    const response = await fetch(url);
-    console.log("Expiries response status:", response.status);
-
-    if (!response.ok) {
-      const body = await response.text();
-      console.error("Failed to load expiries response body:", body);
-      throw new Error("Failed to load expiries");
+    setSingleLoading(true);
+    const commodity = commodityDropdown?.value || "GOLD";
+    await fetchExpiries(commodity, expiryDropdown);
+    if (expiryDropdown && expiryDropdown.value) {
+      await loadSingleAnalysis();
     }
-
-    const data = await response.json();
-    const dropdown = document.getElementById("expiryDropdown");
-    dropdown.innerHTML = "";
-
-    data.forEach((exp) => {
-      const opt = document.createElement("option");
-      opt.value = exp;
-      opt.text = exp;
-      dropdown.appendChild(opt);
-    });
-
-    if (data.length === 0) {
-      clearChart();
-      statusText.textContent = "No expiries found.";
-      return;
-    }
-
-    statusText.textContent = "";
-    await loadAnalysis(true);
   } catch (err) {
     console.error("Error loading expiries:", err);
-    setLoading(false, "Failed to load expiries");
-  } finally {
-    if (!expiryDropdown.options.length) {
-      setLoading(false, statusText.textContent || "Ready.");
+    const box = document.getElementById("explanationBox");
+    if (box) {
+      box.innerText = "Failed to load expiries";
     }
+  } finally {
+    setSingleLoading(false);
   }
 }
 
-function clearChart() {
-  if (oiChart) {
-    oiChart.destroy();
-    oiChart = null;
+async function loadCompareExpiries() {
+  try {
+    await Promise.all([
+      fetchExpiries("GOLD", goldExpiryDropdown),
+      fetchExpiries("GOLDM", goldmExpiryDropdown)
+    ]);
+    await Promise.all([
+      loadPanelAnalysis("GOLD", "gold"),
+      loadPanelAnalysis("GOLDM", "goldm")
+    ]);
+  } catch (err) {
+    console.error("Error loading compare expiries:", err);
   }
 }
 
-function renderPCR(pcr) {
-  const pcrSentiment = pcr > 1.2 ? "Bullish" : pcr < 0.8 ? "Bearish" : "Sideways";
-  const pcrColor = pcr > 1.2 ? "green" : pcr < 0.8 ? "red" : "orange";
+async function fetchAnalysis(commodity, expiry) {
+  const url = `/api/options/analysis?commodity=${encodeURIComponent(commodity)}&expiry=${encodeURIComponent(expiry)}&t=${Date.now()}`;
+  console.log("Calling API:", url);
 
-  pcrCard.innerHTML = `
-    <h3>PCR</h3>
-    <div class="value" style="color:${pcrColor}">PCR: ${pcr.toFixed(2)}</div>
-    <div class="label" style="color:${pcrColor}">${pcrSentiment}</div>
-  `;
+  const response = await fetch(url, {
+    headers: {
+      accept: "application/json, text/plain, */*"
+    }
+  });
 
-  pcrValue.innerText = `PCR: ${pcr.toFixed(2)}`;
+  console.log("Response status:", response.status);
 
-  let meterLabel = "Sideways";
-  let meterColor = "orange";
-  if (pcr > 1.2) {
-    meterLabel = "Bullish";
-    meterColor = "green";
-  } else if (pcr < 0.8) {
-    meterLabel = "Bearish";
-    meterColor = "red";
+  if (!response.ok) {
+    const body = await response.text();
+    console.error("Response body:", body);
+    throw new Error("Failed to load analysis");
   }
 
-  const normalized = Math.min(pcr, 2.0);
-  const percent = (normalized / 2.0) * 100;
-  pcrFill.style.width = `${percent}%`;
-  pcrFill.style.backgroundColor = meterColor;
-  pcrLabel.innerText = meterLabel;
-  pcrLabel.style.color = meterColor;
+  const data = await response.json();
+  if (!data || !data.data || data.data.length === 0) {
+    return null;
+  }
 
-  return { pcrColor };
+  return data;
 }
 
-function renderOISignal(oiSignal, atm) {
-  const oiColor =
-    oiSignal === "Long Buildup" || oiSignal === "Short Covering" ? "green" :
-    oiSignal === "Short Buildup" || oiSignal === "Long Unwinding" ? "red" : "orange";
+function renderCards(data, containerPrefix = "") {
+  const controls = getPanelControls(containerPrefix);
+  const analysis = data?.analysis || {};
+  const pcr = Number(analysis.pcr || 0);
+  const oiSignal = String(analysis.oiSignal || "");
+  const sentimentLabel = String(analysis.marketSentiment?.label || "Neutral");
+  const sentimentReason = String(analysis.marketSentiment?.reason || "");
 
-  oiCard.innerHTML = `
-    <h3>OI Change Analysis</h3>
-    <div class="value" style="color:${oiColor}">${oiSignal}</div>
-    <div class="label" style="color:${oiColor}">ATM: ${atm ?? "-"}</div>
-  `;
+  if (controls.pcrCard) {
+    const pcrClass = getClass(pcr > 1.2 ? "Bull" : pcr < 0.8 ? "Bear" : "Neutral");
+    controls.pcrCard.className = `card ${pcrClass}`;
+    controls.pcrCard.innerHTML = `<h3>PCR</h3><p>${pcr.toFixed(2)}</p>`;
+  }
 
-  explanationBox.textContent = getExplanation(oiSignal);
+  if (controls.oiCard) {
+    controls.oiCard.className = `card ${getClass(oiSignal)}`;
+    controls.oiCard.innerHTML = `<h3>OI Signal</h3><p>${getEmoji(oiSignal)} ${oiSignal}</p>`;
+  }
+
+  if (controls.sentimentCard) {
+    controls.sentimentCard.className = `card ${getClass(sentimentLabel)}`;
+    controls.sentimentCard.innerHTML =
+      `<h3>Sentiment</h3>
+       <p>${getEmoji(sentimentLabel)} ${sentimentLabel}</p>
+       <small>${sentimentReason}</small>`;
+  }
+
+  if (controls.explanationBox) {
+    controls.explanationBox.innerText = getExplanation(oiSignal);
+  }
 }
 
-function renderSentiment(marketSentiment, pcrColor) {
-  const label = String(marketSentiment?.label ?? "Neutral");
-  const reason = String(marketSentiment?.reason ?? "");
+function renderChart(data, canvasId) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !data || !data.data) {
+    return;
+  }
 
-  sentimentCard.innerHTML = `
-    <h3>Market Sentiment</h3>
-    <div class="value" style="color:${pcrColor}">${label}</div>
-    <div class="label">${reason}</div>
-  `;
-}
+  clearChart(canvasId);
 
-function toColorArray(length, baseColor, highlightIndex, highlightColor) {
-  return Array.from({ length }, (_, index) => (index === highlightIndex ? highlightColor : baseColor));
-}
+  const rows = [...data.data].sort((a, b) => Number(a.strikePrice) - Number(b.strikePrice));
+  const labels = rows.map((x) => x.strikePrice);
+  const callData = rows.map((x) => Number(x.callOI || 0));
+  const putData = rows.map((x) => Number(x.putOI || 0));
+  const strongestSupport = String(data.analysis?.strongestSupport ?? "");
+  const strongestResistance = String(data.analysis?.strongestResistance ?? "");
+  const maxPain = String(data.analysis?.maxPain ?? "");
+  const maxPainIndex = labels.findIndex((x) => String(x) === maxPain);
 
-function buildChart(payload) {
-  const rows = payload?.data ?? [];
-  const analysis = payload?.analysis ?? {};
-  const pcr = Number(analysis.pcr ?? 0);
-  const oiSignal = String(analysis.oiSignal ?? "Neutral");
-  const marketSentiment = analysis.marketSentiment ?? {};
-
-  const labels = rows.map((row) => String(row.strikePrice));
-  const callData = rows.map((row) => Number(row.callOI));
-  const putData = rows.map((row) => Number(row.putOI));
-
-  const supportIndex = labels.findIndex((label) => label === String(analysis.strongestSupport));
-  const resistanceIndex = labels.findIndex((label) => label === String(analysis.strongestResistance));
-  const maxPainIndex = labels.findIndex((label) => label === String(analysis.maxPain));
-
-  const callColors = toColorArray(
-    labels.length,
-    "rgba(239, 68, 68, 0.45)",
-    resistanceIndex,
-    "rgba(220, 38, 38, 0.95)"
+  const callColors = labels.map((value) =>
+    String(value) === strongestResistance ? "rgba(255, 59, 59, 0.95)" : "rgba(255, 59, 59, 0.45)"
+  );
+  const putColors = labels.map((value) =>
+    String(value) === strongestSupport ? "rgba(0, 255, 0, 0.95)" : "rgba(0, 255, 0, 0.45)"
   );
 
-  const putColors = toColorArray(
-    labels.length,
-    "rgba(34, 197, 94, 0.45)",
-    supportIndex,
-    "rgba(22, 163, 74, 0.95)"
-  );
-
-  clearChart();
-
-  const maxPainLinePlugin = {
-    id: "maxPainLine",
+  const maxPainPlugin = {
+    id: `maxPainLine-${canvasId}`,
     afterDraw(chart) {
       if (maxPainIndex < 0) {
         return;
@@ -177,21 +283,21 @@ function buildChart(payload) {
 
       ctx.save();
       ctx.beginPath();
-      ctx.strokeStyle = "rgba(37, 99, 235, 0.95)";
+      ctx.strokeStyle = "rgba(59, 130, 246, 0.95)";
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 6]);
       ctx.moveTo(x, chartArea.top);
       ctx.lineTo(x, chartArea.bottom);
       ctx.stroke();
       ctx.setLineDash([]);
-      ctx.fillStyle = "rgba(37, 99, 235, 0.95)";
+      ctx.fillStyle = "rgba(59, 130, 246, 0.95)";
       ctx.font = "12px Arial";
-      ctx.fillText(`Max Pain: ${analysis.maxPain}`, x + 8, chartArea.top + 16);
+      ctx.fillText(`Max Pain: ${maxPain}`, x + 8, chartArea.top + 16);
       ctx.restore();
     }
   };
 
-  oiChart = new Chart(chartCanvas, {
+  chartInstances.set(canvasId, new Chart(canvas, {
     type: "bar",
     data: {
       labels,
@@ -215,13 +321,14 @@ function buildChart(payload) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
       interaction: {
         mode: "index",
         intersect: false
       },
       plugins: {
         legend: {
-          position: "top"
+          labels: { color: "#e6eef7" }
         },
         tooltip: {
           callbacks: {
@@ -231,11 +338,9 @@ function buildChart(payload) {
             },
             label(context) {
               const index = context.dataIndex;
-              const call = callData[index];
-              const put = putData[index];
               return [
-                `Call OI: ${call.toLocaleString()}`,
-                `Put OI: ${put.toLocaleString()}`
+                `Call OI: ${Number(callData[index] || 0).toLocaleString()}`,
+                `Put OI: ${Number(putData[index] || 0).toLocaleString()}`
               ];
             }
           }
@@ -243,106 +348,135 @@ function buildChart(payload) {
       },
       scales: {
         x: {
-          title: {
-            display: true,
-            text: "Strike Price"
-          }
+          ticks: { color: "#e6eef7" },
+          title: { display: true, text: "Strike Price", color: "#e6eef7" },
+          grid: { color: "rgba(255,255,255,0.06)" }
         },
         y: {
           beginAtZero: true,
-          title: {
-            display: true,
-            text: "Open Interest"
-          }
+          ticks: { color: "#e6eef7" },
+          title: { display: true, text: "Open Interest", color: "#e6eef7" },
+          grid: { color: "rgba(255,255,255,0.06)" }
         }
       }
     },
-    plugins: [maxPainLinePlugin]
-  });
-
-  statusText.textContent =
-    `Loaded ${rows.length} strikes | Max Pain ${analysis.maxPain ?? "-"} | ` +
-    `Support ${analysis.strongestSupport ?? "-"} | Resistance ${analysis.strongestResistance ?? "-"}`;
-
-  const { pcrColor } = renderPCR(pcr);
-  renderOISignal(oiSignal, analysis.atm);
-  renderSentiment(marketSentiment, pcrColor);
+    plugins: [maxPainPlugin]
+  }));
 }
 
-async function loadAnalysis(force = false) {
-  const expiry = expiryDropdown.value;
+async function loadSingleAnalysis() {
+  const commodity = commodityDropdown?.value || "GOLD";
+  const expiry = expiryDropdown?.value || "";
+
   if (!expiry) {
-    statusText.textContent = "Select an expiry first.";
-    return;
-  }
-
-  const commodity = commodityDropdown.value || "GOLD";
-  const url = `/api/options/analysis?commodity=${encodeURIComponent(commodity)}&expiry=${encodeURIComponent(expiry)}&t=${Date.now()}`;
-  console.log("Calling analysis URL:", url);
-
-  setLoading(true, `Loading data for ${commodity} ${expiry}...`);
-  const response = await fetch(url, {
-    headers: {
-      accept: "application/json, text/plain, */*"
+    const box = document.getElementById("explanationBox");
+    if (box) {
+      box.innerText = "Select an expiry first.";
     }
-  });
-  console.log("Analysis response status:", response.status);
-
-  if (!response.ok) {
-    const body = await response.text();
-    console.error("Failed to load analysis response body:", body);
-    throw new Error("Failed to load analysis");
-  }
-
-  const payload = await response.json();
-  if (!payload || !payload.data || payload.data.length === 0) {
-    statusText.textContent = "No data available";
-    clearChart();
-    setLoading(false, "No data available");
     return;
   }
 
-  const pcr = payload?.analysis?.pcr ?? 0;
-  if (!pcr || pcr === 0) {
-    console.warn("PCR is zero - check backend calculation");
-  }
-  buildChart(payload);
-  setLoading(false, `Loaded ${expiry}.`);
-}
+  const url = `/api/options/analysis?commodity=${encodeURIComponent(commodity)}&expiry=${encodeURIComponent(expiry)}`;
+  console.log("Calling API:", commodity, expiry);
+  console.log("Analysis URL:", url);
 
-loadBtn.addEventListener("click", () => loadAnalysis(false).catch((err) => {
-  console.error("Error loading analysis:", err);
-  setLoading(false, "Failed to load analysis");
-}));
+  setSingleLoading(true);
+  try {
+    const payload = await fetchAnalysis(commodity, expiry);
+    if (!payload) {
+      const box = document.getElementById("explanationBox");
+      if (box) {
+        box.innerText = "No data available";
+      }
+      clearChart("oiChart");
+      return;
+    }
 
-refreshBtn.addEventListener("click", () => loadAnalysis(true).catch((err) => {
-  console.error("Error refreshing analysis:", err);
-  setLoading(false, "Failed to load analysis");
-}));
-
-expiryDropdown.addEventListener("change", () => {
-  statusText.textContent = `Selected ${expiryDropdown.value}.`;
-});
-
-commodityDropdown.addEventListener("change", () => {
-  statusText.textContent = `Selected ${commodityDropdown.value}.`;
-});
-
-document.addEventListener("DOMContentLoaded", () => {
-  loadExpiries();
-});
-
-function getExplanation(oiSignal) {
-  switch (oiSignal) {
-    case "Long Buildup":
-      return "New buying positions are being created. Traders expect prices to rise.";
-    case "Short Buildup":
-      return "New short positions are being created. Traders expect prices to fall.";
-    case "Short Covering":
-      return "Short sellers are exiting positions. This can push prices up.";
-    case "Long Unwinding":
-      return "Buyers are exiting positions. This can push prices down.";
-    default:
-      return "No clear OI signal is present for the current ATM strike.";
+    renderCards(payload);
+    renderChart(payload, "oiChart");
+  } catch (err) {
+    console.error("Error loading analysis:", err);
+    const box = document.getElementById("explanationBox");
+    if (box) {
+      box.innerText = "Failed to load analysis";
+    }
+  } finally {
+    setSingleLoading(false);
   }
 }
+
+async function loadPanelAnalysis(commodity, prefix) {
+  const controls = getPanelControls(prefix);
+  const expiry = controls.expiryDropdown?.value || "";
+  if (!expiry) {
+    if (controls.explanationBox) {
+      controls.explanationBox.innerText = "Select an expiry first.";
+    }
+    return;
+  }
+
+  setCompareLoading(prefix, true);
+  try {
+    const payload = await fetchAnalysis(commodity, expiry);
+    if (!payload) {
+      if (controls.explanationBox) {
+        controls.explanationBox.innerText = "No data available";
+      }
+      clearChart(controls.chartId);
+      return;
+    }
+
+    renderCards(payload, prefix);
+    renderChart(payload, controls.chartId);
+  } catch (err) {
+    console.error(`Error loading ${commodity} analysis:`, err);
+    if (controls.explanationBox) {
+      controls.explanationBox.innerText = "Failed to load analysis";
+    }
+  } finally {
+    setCompareLoading(prefix, false);
+  }
+}
+
+async function loadSingleExpiriesAndAnalysis() {
+  await loadSingleExpiries();
+}
+
+function wireEvents() {
+  if (compareToggle) {
+    compareToggle.addEventListener("click", async () => {
+      setViewMode(!isCompareMode);
+      if (isCompareMode) {
+        await loadCompareExpiries();
+      } else {
+        await loadSingleExpiriesAndAnalysis();
+      }
+    });
+  }
+
+  if (loadBtn) {
+    loadBtn.addEventListener("click", () => loadSingleAnalysis());
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => loadSingleAnalysis());
+  }
+
+  if (commodityDropdown) {
+    commodityDropdown.addEventListener("change", () => loadSingleExpiriesAndAnalysis());
+  }
+
+  if (goldLoadBtn) {
+    goldLoadBtn.addEventListener("click", () => loadPanelAnalysis("GOLD", "gold"));
+  }
+
+  if (goldmLoadBtn) {
+    goldmLoadBtn.addEventListener("click", () => loadPanelAnalysis("GOLDM", "goldm"));
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  setViewMode(false);
+  wireEvents();
+  await loadSingleExpiriesAndAnalysis();
+});

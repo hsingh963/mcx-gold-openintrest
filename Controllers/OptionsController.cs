@@ -29,8 +29,9 @@ public sealed class OptionsController : ControllerBase
     [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetExpiries([FromQuery] string commodity = "GOLD")
     {
-        _logger.LogInformation("Loading expiries for commodity {Commodity}", NormalizeCommodity(commodity));
-        var expiries = await _expiryService.GetExpiriesAsync(HttpContext.RequestAborted);
+        var normalizedCommodity = NormalizeCommodity(commodity);
+        _logger.LogInformation("Loading expiries for commodity {Commodity}", normalizedCommodity);
+        var expiries = await _expiryService.GetExpiriesAsync(normalizedCommodity, HttpContext.RequestAborted);
         return Ok(expiries);
     }
 
