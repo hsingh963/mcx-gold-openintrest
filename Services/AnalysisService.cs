@@ -4,10 +4,17 @@ namespace GoldInrOpenIntrest.Api.Services;
 
 public sealed class AnalysisService
 {
+    private readonly ILogger<AnalysisService> _logger;
+
+    public AnalysisService(ILogger<AnalysisService> logger)
+    {
+        _logger = logger;
+    }
+
     public OIAnalysisResult Analyze(IReadOnlyList<OptionData> input)
     {
         var data = input
-            .Where(x => x.CallOI != 0 || x.PutOI != 0)
+            .Where(x => x.CallOI > 0 || x.PutOI > 0)
             .OrderBy(x => x.StrikePrice)
             .ToArray();
 
@@ -16,8 +23,8 @@ public sealed class AnalysisService
             return new OIAnalysisResult
             {
                 TopSupports = [],
-                TopResistances = []
-            };
+            TopResistances = []
+        };
         }
 
         var strongestSupport = data
@@ -46,9 +53,18 @@ public sealed class AnalysisService
             .Select(x => x.StrikePrice)
             .ToList();
 
-        var totalCallOi = data.Sum(x => x.CallOI);
-        var totalPutOi = data.Sum(x => x.PutOI);
-        var pcr = totalCallOi == 0 ? 0m : totalPutOi / totalCallOi;
+        decimal totalPutOi = data.Sum(x => (decimal)x.PutOI);
+        decimal totalCallOi = data.Sum(x => (decimal)x.CallOI);
+        decimal pcr = 0m;
+
+        if (totalCallOi > 0)
+        {
+            pcr = totalPutOi / totalCallOi;
+        }
+
+        _logger.LogInformation("Total Put OI: {TotalPutOi}", totalPutOi);
+        _logger.LogInformation("Total Call OI: {TotalCallOi}", totalCallOi);
+        _logger.LogInformation("PCR: {PCR}", pcr);
 
         var maxPain = CalculateMaxPain(data);
 

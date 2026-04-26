@@ -3,6 +3,9 @@ const loadBtn = document.getElementById("loadBtn");
 const refreshBtn = document.getElementById("refreshBtn");
 const chartCanvas = document.getElementById("oiChart");
 const statusText = document.getElementById("status");
+const pcrValue = document.getElementById("pcrValue");
+const pcrFill = document.getElementById("pcrFill");
+const pcrLabel = document.getElementById("pcrLabel");
 let oiChart = null;
 
 function setLoading(isLoading, message) {
@@ -53,6 +56,7 @@ function toColorArray(length, baseColor, highlightIndex, highlightColor) {
 function buildChart(payload) {
   const rows = payload?.data ?? [];
   const analysis = payload?.analysis ?? {};
+  const pcr = Number(analysis.pcr ?? 0);
 
   const labels = rows.map((row) => String(row.strikePrice));
   const callData = rows.map((row) => Number(row.callOI));
@@ -176,6 +180,25 @@ function buildChart(payload) {
   statusText.textContent =
     `Loaded ${rows.length} strikes | Max Pain ${analysis.maxPain ?? "-"} | ` +
     `Support ${analysis.strongestSupport ?? "-"} | Resistance ${analysis.strongestResistance ?? "-"}`;
+
+  pcrValue.innerText = `PCR: ${pcr.toFixed(2)}`;
+
+  let sentiment = "Sideways";
+  let color = "orange";
+  if (pcr > 1.2) {
+    sentiment = "Bullish";
+    color = "green";
+  } else if (pcr < 0.8) {
+    sentiment = "Bearish";
+    color = "red";
+  }
+
+  const normalized = Math.min(pcr, 2.0);
+  const percent = (normalized / 2.0) * 100;
+  pcrFill.style.width = `${percent}%`;
+  pcrFill.style.backgroundColor = color;
+  pcrLabel.innerText = sentiment;
+  pcrLabel.style.color = color;
 }
 
 async function loadAnalysis(force = false) {

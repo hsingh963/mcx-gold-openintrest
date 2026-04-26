@@ -72,7 +72,7 @@ public sealed class OptionsController : ControllerBase
     }
 
     [HttpGet("gold/analysis")]
-    [ProducesResponseType(typeof(GoldAnalysisResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status502BadGateway)]
@@ -97,15 +97,23 @@ public sealed class OptionsController : ControllerBase
             }
 
             var sanitized = options
-                .Where(x => x.CallOI != 0 || x.PutOI != 0)
+                .Where(x => x.CallOI > 0 || x.PutOI > 0)
                 .OrderBy(x => x.StrikePrice)
                 .ToList();
 
             var analysis = _analysisService.Analyze(sanitized);
-            return Ok(new GoldAnalysisResponse
+            return Ok(new
             {
                 Data = sanitized,
-                Analysis = analysis
+                Analysis = new
+                {
+                    pcr = analysis.PCR,
+                    maxPain = analysis.MaxPain,
+                    strongestSupport = analysis.StrongestSupport,
+                    strongestResistance = analysis.StrongestResistance,
+                    topSupports = analysis.TopSupports,
+                    topResistances = analysis.TopResistances
+                }
             });
         }
         catch (McxUpstreamException ex)

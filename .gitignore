@@ -94,3 +94,5 @@ wwwroot/build/
 ############################
 expiries.txt       # if you don't want this tracked (optional)
 *.png              # generated graphs if any leftover
+
+.dotnet_home
